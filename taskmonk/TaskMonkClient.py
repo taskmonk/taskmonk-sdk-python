@@ -5,7 +5,8 @@ import gzip
 import json
 import requests
 import logging
-#from apiKeycredentials import *
+import os
+import zlib
 
 argsList = argumentlist.argsList
 argumentVerifier = utilities.argumentVerifier
@@ -20,11 +21,17 @@ class InvalidArguments(Error):
 class TaskMonkClient:
     baseURL = urlConfig.BASE_URL
     token = None
+    clientId = ''
+    clientSecret = ''
+    project_id = ''
     #oAuthClient
 
-    def __init__(self, base_url=urlConfig.BASE_URL):
+    def __init__(self, base_url, project_id, client_id = '', client_secret = ''):
         self.baseURL = base_url
         #self.apiKey = api_key
+        self.clientId = client_id
+        self.clientSecret = client_secret
+        self.project_id = project_id
         self.token = self.refreshToken()
     
     def refreshToken(self):
@@ -32,8 +39,8 @@ class TaskMonkClient:
         token_url = self.baseURL + '/api/oauth2/token'
         params =  {
             'grant_type': 'client_credentials',
-            'client_id': 'uIUSPlDMnH8gLEIrnlkdIPRE6bZYhHpw',
-            'client_secret':'zsYgKGLUnftFgkASD8pndMwn3viA0IPoGKAiw6S7aVukgMWI8hGJflFs0P2QYxTg'
+            'client_id': self.clientId,
+            'client_secret': self.clientSecret
         }
         headers = {'accept': 'application/json'}
         access_token_response = requests.post(token_url, params= params,headers = headers)
@@ -50,98 +57,106 @@ class TaskMonkClient:
         #logging.debug(self.token)
         return self.token
 
-    def getProjectInfoByID(self, projectId=None):
+    def getProjectInfoByID(self):
         try:
-            if argumentVerifier([projectId, self.apiKey]):
+            if argumentVerifier([self.project_id, self.apiKey]):
                 raise InvalidArguments
         except InvalidArguments:
             logging.debug('invalid arguments')
             return json.dumps(argsList['getProjectInfoByID'])
     
-        url = self.baseURL + urlConfig.URLS['Project'] + '/' + projectId
+        url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id
         response = apiCall.get(self.token,url, {}, 10)
     
         return json2obj(response).response
     
-    def getProjectUsers(self, projectId):
-        url = self.baseURL + urlConfig.URLS['Project'] + '/' + projectId + '/users'
+    def getProjectUsers(self):
+        url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id + '/users'
         response = apiCall.get(url, {}, 10)
         return response
     
-    # def uploadTasks1(projectId, batchId, files=None, self.apiKey=None):
-    #     url = self.baseURL + urlConfig.URLS['Project'] + '/' + projectId + '/import/tasks/batch/' + batchId
+    # def uploadTasksWithBatchId(self,self.project_id, batch_id, files=None):
+    #      url = self.baseURL + urlConfig.URLS['Project'] + self.project_id + "/batch/" + batch_id + "/tasks/import"
     #     # files = {'files': open('/Users/prashanth/Downloads/2095.14_Input.xls', 'rb')}
     #     # content = "encoded", batch_name = batchName, priority = Some(priority), comments = Some(comments))
     #     response = apiCall.fileUpload(self.apiKey, url, files , 30)
     #     return response
     
-    def getJobProgress(self, projectId, jobId):
-        url = self.baseURL + urlConfig.URLS['Project'] + '/' +projectId + '/job/' + jobId + '/status'
+    def get_job_progress(self, job_id):
+        url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id + '/job/' + job_id + '/status'
         response = apiCall.get(self.token,url, {}, 10)
         return json2obj(response).response
     
-    def getBatchStatus(self, projectId, batchId):
-        url = self.baseURL + urlConfig.URLS['Project'] + '/' + projectId + '/batch/' + batchId + '/status'
-        response = apiCall.get(self.token,url, {}, 10)
+    def getBatchStatus(self, batch_id):
+        url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id + '/batch/' + batch_id + '/status'
+        response = apiCall.get(self.token, url, {}, 10)
         return response
     
-    def uploadTasks(self,  projectId=None, batchId=None,file=None):
-        url = self.baseURL + urlConfig.URLS['Project'] + projectId + "/batch/" + batchId + "/tasks/import"
+    def get_batch(self):
+        url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id + '/batch'
+        response = apiCall.get(self.token, url, {}, 10)
+        logging.debug(response)
+        return response
     
-        try:
-            if argumentVerifier([projectId, file, batch_name, token]):
-                raise InvalidArguments
-        except InvalidArguments:
-            logging.debug('invalid arguments', projectId, file)
-            return json.dumps(argsList['uploadTasks']) 
+    def upload_tasks(self, batch_id = None, input_file='', file_type = 'Excel'):
+
+        url = self.baseURL + urlConfig.URLS['Project'] + '/v2/' + self.project_id + "/batch/" + batch_id + "/tasks/import?fileType=" + file_type
     
-        try:
-            if file.endswith('.gz'):
-                fileContent = open(file, 'rb').read()
+       
+        try:   
+            if input_file.endswith('.gz'):
+                fileContent = open(input_file, 'rb').read()
                 encoded = base64.b64encode(fileContent)
             else:
-                fileContent = open(file, 'rb').read()
+                fileContent = open(input_file, 'rb').read()
                 with gzip.open('file.txt.gz', 'wb') as f:
                     f.write(fileContent)
                 fileContent = open('file.txt.gz', 'rb').read()
                 encoded = base64.b64encode(fileContent)
+                os.remove('file.txt.gz')
+                response = requests.post(url, encoded, headers = {
+                    'Content-Type': 'text/plain',
+                    'Authorization': 'Bearer ' + self.token})
+                logging.debug(response.json())
+                parsed = response.json()
+                job_id = parsed['job_id']
+                logging.debug('job id = %s', job_id)
+                return job_id
     
-        except:
-            return json.dumps({
-                "response": None,
-                "error": "failed to decode file, file format supported .gzip .xls .xlsx"
-            })
-    
-        # notifications = []
-        # if notification_email:
-        #     notification = {}
-        #     notification['notificationType'] = "Email"
-        #     metaData = {'email_address': notification_email}
-        #     notification['metaData'] = metaData
-        #     notifications.append(notification)
+        except Exception as e: print(e)
 
-        # payload = {
-        #   "batch_name": "batchName",
-        #   "priority": 0,
-        #   "comments": "string",
-        #   "notifications":  notifications
-        # }
     
-        response = apiCall.post(self.token,url,fileContent, 60)
+    # def uploadTasksWithoutBatchId(self, batch_name = '', input_file='', file_type = 'Excel'):
+
+    #     url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id + "/batch/" + batch_id + "/tasks/import?file_type=" + file_type
+        
+    #     try:
+
+    #         if input_file.endswith('.gz'):
+    #             fileContent = open(input_file, 'rb').read()
+    #             encoded = base64.b64encode(fileContent)
+    #         else:
+    #             fileContent = open(input_file, 'rb').read()
+    #             with gzip.open('file.txt.gz', 'wb') as f:
+    #                 f.write(fileContent)
+    #             fileContent = open('file.txt.gz', 'rb').read()
+    #             encoded = base64.b64encode(fileContent)
+    #             response = requests.post(url, encoded, headers = {
+    #                 'Content-Type': 'text/plain',
+    #                 'Authorization': 'Bearer ' + self.token})
+    #             return response
     
-        return json2obj(response).response
+    #     except Exception as e: print(e)
     
-    
-    def importTasksUrl(self, projectId=None, fileUrl=None):
-    
+    def importTasksUrl(self, fileUrl=None):
         try:
-            if argumentVerifier([projectId, fileUrl, token]):
+            if argumentVerifier([self.project_id, fileUrl, token]):
                 raise InvalidArguments
         except InvalidArguments:
             logging.debug('invalid arguments')
             return json.dumps(argsList['importTasksUrl'])
     
-        url = self.baseURL + urlConfig.URLS['Project'] + '/' + projectId + '/import/tasks/url'
+        url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id + '/import/tasks/url'
     
         data = json.dumps({
             "fileUrl": fileUrl,
@@ -152,28 +167,29 @@ class TaskMonkClient:
         logging.debug(response)
         return response
     
-    def create_batch(self,batchName='',projectId=None):
 
-        url = self.baseURL + urlConfig.URLS['Project'] + '/' + projectId + '/batch'
+    def create_batch(self,batchName=''):
+
+        url = self.baseURL + urlConfig.URLS['Project'] + '/' + self.project_id + '/batch'
         batch = {
             "batch_name": "string",
             "priority": 0,
             "comments": "string",
             "notifications": [
                 {
-                "notificationType": "Email",
-                "metaData": {}
+                "notification_type": "Email",
+                "metadata": {}
                 }
             ]
         }
         data = json.dumps(batch)
         response = apiCall.post(self.token,url,data,30)
-        logging.debug(response)
-        return response
+        logging.debug(response['id'])
+        return response['id']
 
 
 
 
 
 
-        
+

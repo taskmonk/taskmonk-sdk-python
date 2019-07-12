@@ -14,39 +14,19 @@ handlers = [logging.FileHandler('logger.log'), logging.StreamHandler()]
 logging.basicConfig(level = level, format = format, handlers = handlers)
 logging.debug('Hey, this is working!')
 
-class Test:
 
-    def main(self):
-        projectId = "240"
-        #logging.debug(access_token_response.status_code)
-        # Initialize the taskmonk client witht he oauth credentials and projectId
+project_id = "169"
 
-        client = TaskMonkClient("http://localhost:9000")
+client = TaskMonkClient("http://localhost:9000", 
+    project_id = project_id, 
+    client_id = 'uIUSPlDMnH8gLEIrnlkdIPRE6bZYhHpw',
+    client_secret= 'zsYgKGLUnftFgkASD8pndMwn3viA0IPoGKAiw6S7aVukgMWI8hGJflFs0P2QYxTg')
 
-        # upload_tasks = client.uploadTasks(projectId,"/home/dang/Downloads/Primenow_Excel_50.xlsx","batchName")
-        # logging.debug(upload_tasks)
+batch_id = client.create_batch("batchname")
+logging.debug('Created batch %s', batch_id)
 
-        # project_info = client.getProjectInfoByID(projectId)
-        # logging.debug(project_info)
+upload_job_id = client.upload_tasks(batch_id, '/Users/sampath/tmp.csv', 'CSV')
+logging.debug("upload job_id = %s", upload_job_id)
 
-        # project_users = client.getProjectUsers(projectId)
-        # logging.debug(project_users)
-
-        # job_progress = client.getJobProgress(projectId,10)
-        # logging.debug(job_progress)
-
-        # batch_status = client.getBatchStatus(projectId,10)
-        # logging.debug(batch_status)
-
-        
-
-        # import_task_url = client.importTasksUrl(projectId=projectId)
-        # logging.debug(import_task_url)
-
-        createBatch = client.create_batch("batchName","127")
-        logging.debug(createBatch)
-
-
-logging.debug('Hello')
-test = Test()
-test.main()
+upload_job_progress = client.get_job_progress(upload_job_id)
+logging.debug("Job Progess = %s", upload_job_progress)

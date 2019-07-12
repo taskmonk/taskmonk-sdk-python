@@ -1,6 +1,7 @@
 import json
 import requests
 import sys
+import logging
 
 def pretty_print_POST(req):
     """
@@ -41,7 +42,7 @@ def get(accToken = None,url='', data={}, timeout=10):
             "response": None
         })
 
-def post(accToken,url='', data={}, timeout=30):
+def post(accToken, url='', data={}, timeout=30):
     #accToken = access_token()
 
     headers = {
@@ -60,19 +61,17 @@ def post(accToken,url='', data={}, timeout=30):
 
         res.raise_for_status()
         resp = res.json()
-        return json.dumps({
-            "response": resp,
-            "error": None
-        })
+        logging.debug('resp = {}', resp)
+        return resp
 
     except Exception as e:
-        return json.dumps({
-            "error": str(e),
-            "response": None
-        })
+        logging.exception("Fatal error in main loop")
+        raise
+        
 
 
-def fileUpload(accToken,url='', files={}, timeout=30):
+
+def fileUpload(accToken, url='', files={}, timeout=30):
     headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + str(accToken)
