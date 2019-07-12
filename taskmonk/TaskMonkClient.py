@@ -1,4 +1,4 @@
-from utils import urlConfig, apiCall, argumentlist, utilities
+from taskmonk.utils import urlConfig, apiCall, argumentlist, utilities
 from utils.jsonUtils import json2obj
 import base64
 import gzip
