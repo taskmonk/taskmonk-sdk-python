@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 setup(
   name = 'taskmonk-sdk',         # How you named your package folder (MyLib)
   packages = ['taskmonk', 'taskmonk.utils'],   # Chose the same as "name"
-  version = '0.4',      # Start with a small number and increase it with every change you make
+  version = '0.6',      # Start with a small number and increase it with every change you make
   license='apache-2.0',        # Chose a license from here: 
   description = 'SDK for accessing TaskMonk functionality',   # Give a short description about your library
   author = 'Taskmonk',                   # Type in your name

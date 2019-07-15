@@ -20,7 +20,7 @@ def pretty_print_POST(req):
     ))
 
 
-def get(accToken = None,url='', data={}, timeout=10):
+def get(accToken = None, url='', data={}, timeout=10):
     headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + str(accToken)
@@ -31,16 +31,12 @@ def get(accToken = None,url='', data={}, timeout=10):
         r = requests.get(url, timeout=timeout, headers=headers)
         r.raise_for_status()
         resp = r.json()
-        return json.dumps({
-            "response": resp,
-            "error": None
-        })
+        logging.debug('resp = %s', resp)
+        return resp
 
     except Exception as e:
-        return json.dumps({
-            "error": str(e),
-            "response": None
-        })
+        logging.exception("Fatal error in main loop")
+        raise
 
 def post(accToken, url='', data={}, timeout=30):
     #accToken = access_token()
@@ -67,13 +63,10 @@ def post(accToken, url='', data={}, timeout=30):
     except Exception as e:
         logging.exception("Fatal error in main loop")
         raise
-        
 
 
-
-def fileUpload(accToken, url='', files={}, timeout=30):
+def file_upload(accToken, url='', files={}, timeout=30):
     headers = {
-        'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + str(accToken)
     }
     
@@ -82,42 +75,7 @@ def fileUpload(accToken, url='', files={}, timeout=30):
         r = requests.post(url, files=files, timeout=timeout, headers=headers)
         r.raise_for_status()
         resp = r.json()
-        return json.dumps({
-            "response": resp,
-            "error": None
-        })
-
+        return resp
     except Exception as e:
-        return json.dumps({
-            "error": str(e),
-            "response": None
-        })
-    # except requests.exceptions.ConnectionError as e:
-    #     return {
-    #         "error": e,
-    #         "response": None
-    #     }
-    #
-    # except requests.exceptions.Timeout as e:
-    #     return {
-    #         "error": e,
-    #         "response": None
-    #     }
-    #
-    # except requests.exceptions.TooManyRedirects as e:
-    #     return {
-    #         "error": e,
-    #         "response": None
-    #     }
-    #
-    # except requests.exceptions.HTTPError as e:
-    #     return {
-    #         "error": e,
-    #         "response": None
-    #     }
-    #
-    # except requests.exceptions.RequestException as e:
-    #     return {
-    #         "error": e,
-    #         "response": None
-    #     }
+        logging.exception("Failed file upload")
+        raise
