@@ -10,9 +10,9 @@ handlers = [logging.FileHandler('logger.log'), logging.StreamHandler()]
 
 logging.basicConfig(level = level, format = format, handlers = handlers)
 
-project_id = "456"
+project_id = "169"
 
-client = TaskMonkClient("http://localhost:9000", 
+client = TaskMonkClient("preprod.taskmonk.io", 
     project_id = project_id, 
     client_id = 'uIUSPlDMnH8gLEIrnlkdIPRE6bZYhHpw',
     client_secret= 'zsYgKGLUnftFgkASD8pndMwn3viA0IPoGKAiw6S7aVukgMWI8hGJflFs0P2QYxTg')
@@ -20,17 +20,17 @@ client = TaskMonkClient("http://localhost:9000",
 
 
 
-# #
-# # Create the taxonomy
-# #
-# taxonomy_id = client.create_taxonomy('taxonomy_name') 
-# logging.debug('Created taxonomy %s', taxonomy_id)
+#
+# Create the taxonomy
+#
+taxonomy_id = client.create_taxonomy('taxonomy_name') 
+logging.debug('Created taxonomy %s', taxonomy_id)
 
-# #
-# # Upload taxonomy categories
-# #
-# upload_result = client.import_taxonomy(taxonomy_id, '/home/dang/Downloads/taxonomy.xlsx')
-# logging.debug('Import taxonomy result = %s', upload_result)
+#
+# Upload taxonomy categories
+#
+upload_result = client.import_taxonomy(taxonomy_id, '/home/dang/Downloads/taxonomy.xlsx')
+logging.debug('Import taxonomy result = %s', upload_result)
 
 #
 # Create the batch with the default parameters
@@ -38,20 +38,28 @@ client = TaskMonkClient("http://localhost:9000",
 batch_id = client.create_batch("batchname")
 logging.debug('Created batch %s', batch_id)
 
-import_task_from_url = client.import_tasks_url(project_id,batch_id,'https://drive.google.com/file/d/1WvklGqLHnJUy3hXmzA30nM-DLq3Yw6pj/view?usp=sharing','Excel')
-logging.debug(import_task_from_url)
+#
+#Upload Task from url
+#
+upload_job_id_from_url = client.import_tasks_url(project_id,batch_id,'https://tmpupload.blob.core.windows.net/test/tmp.xlsx','Excel')
+logging.debug(upload_job_id_from_url)
 
 #
 # Upload the tasks from the csv file
 #
-upload_job_id = client.upload_tasks(batch_id, '/Users/sampath/tmp.csv', 'CSV')
+upload_job_id = client.upload_tasks(batch_id, '/home/dang/Downloads/pt.csv', 'CSV')
 logging.debug("upload job_id = %s", upload_job_id)
 
 #
 # Check the progress of the upload job
 #
-upload_job_progress = client.get_job_progress(upload_job_id)
-logging.debug("Job Progess = %s", upload_job_progress)
+if __name__ == '__upload_tasks__':
+    upload_job_progress = client.get_job_progress(upload_job_id)
+    logging.debug("Job Progess from file = %s", upload_job_progress)
+else:
+    upload_job_progress = client.get_job_progress(upload_job_id_from_url)
+    logging.debug("Job Progess from URL = %s", upload_job_progress)
+
 
 #
 # Wait till the upload job is complete
@@ -61,9 +69,9 @@ while (not client.is_job_complete(upload_job_id)):
 	sleep(1)
 logging.debug("Upload tasks is complete")
 
-# #
-# # Check the status of the batch
-# #
+#
+# Check the status of the batch
+#
 batch_status = client.get_batch_status(batch_id)
 logging.debug("Batch Status = %s", batch_status)
 
@@ -73,16 +81,11 @@ logging.debug("Batch Status = %s", batch_status)
 while (not client.is_batch_complete(batch_id)):
 	logging.debug("waiting for batch to complete")
 	sleep(1)
-
 logging.debug("Batch annotation is complete")
 
 #
 # Get batch output
 # 
-batch_output = client.get_batch_output(batch_id, '/tmp/output.csv', output_format = 'CSV')
+batch_output = client.get_batch_output(batch_id, '/home/dang/Downloads/output.csv', output_format = 'CSV')
 logging.debug('batch_output = %s', batch_output)
 
-completed = batch_status['completed']
-total = batch_status['total']
-batchComplete = client.isBatchComplete(BatchStatus(0,0,completed,total))
-logging.debug(batchComplete)

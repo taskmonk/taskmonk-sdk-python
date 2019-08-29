@@ -20,6 +20,9 @@ from taskmonk.utils import urlConfig, apiCall, argumentlist, utilities
 from taskmonk.utils.jsonUtils import json2obj
 from datetime import datetime, timedelta
 
+from urlparse import urlparse
+from urllib import urlretrieve
+
 import base64
 import gzip
 import json
@@ -28,7 +31,6 @@ import logging
 import os
 import zlib
 import urllib
-from collections import namedtuple
 from time import sleep
 
 import ntpath
@@ -44,10 +46,7 @@ class InvalidArguments(Error):
 
 class TaskMonkClient:
     """
-    A class used to represent TaskMonk Client
-
-    ...
-
+    A class used to access TaskMonk APIs
 
     """
     _base_url = urlConfig.BASE_URL
@@ -57,8 +56,9 @@ class TaskMonkClient:
     _expires_at = None
     _access_token = None
     _refresh_token = None
+    _proxy = {}
 
-    def __init__(self, base_url, project_id, client_id = '', client_secret = ''):
+    def __init__(self, base_url, project_id, client_id = '', client_secret = '', proxy = {}):
 
         """
         Parameters
@@ -78,10 +78,18 @@ class TaskMonkClient:
             contains the OAuth2 _client_secret
         """
 
-        self._base_url = _base_url
-        self._client_id = _client_id
-        self._client_secret = _client_secret
-        self._project_id = _project_id
+        self._base_url = self._url_convert(base_url)
+        self._client_id = client_id
+        self._client_secret = client_secret
+        self._project_id = project_id
+        self._proxy = proxy
+    
+    def _url_convert(self,url = ''):
+        if not urlparse(url).scheme:
+            url = "http://"+url
+        print(url)
+        return url
+
     
     def _refresh_token(self):
         """
@@ -90,11 +98,11 @@ class TaskMonkClient:
         token_url = self._base_url + '/api/oauth2/token'
         params =  {
             'grant_type': 'client_credentials',
-            '_client_id': self._client_id,
-            '_client_secret': self._client_secret
+            'client_id': self._client_id,
+            'client_secret': self._client_secret
         }
         headers = {'accept': 'application/json'}
-        response = requests.post(token_url, params= params,headers = headers)
+        response = requests.post(token_url,proxies = self._proxy,params= params,headers = headers)
         logging.debug(response.text)
         parsed = response.json()
         self._access_token = parsed['access_token']
@@ -103,9 +111,9 @@ class TaskMonkClient:
         ## Keep a buffer of 120 seconds to refresh token before expiry
         self._expires_at = datetime.now() + timedelta(seconds=(expires_in - 120))
 
-        logging.debug('_access_token %s expires at %s', self._access_token, self._expires_at)
+        logging.debug('access_token %s expires at %s', self._access_token, self._expires_at)
 
-        return
+        return 
 
     
     def _is_expired(self): 
@@ -120,13 +128,12 @@ class TaskMonkClient:
     def _get_token(self):
         """ Gets the refresh token if access token is expired"""
         if self._access_token is None or self._is_expired():
-            self.refresh_token()
+            self._refresh_token()
         return self._access_token
 
-    """---------------------------------------------------------------------------------------------"""
 
     def create_batch(self, batch_name, priority = 0, comments = '', notifications = []):
-        """
+        """Create a new batch
         Parameters
         ----------
         batch_name: str
@@ -158,12 +165,12 @@ class TaskMonkClient:
             ]
         }
         data = json.dumps(batch)
-        response = apiCall.post(self.get_token(), url, data, 30)
+        response = apiCall.post(self._get_token(), url,self._proxy,data, 30)
         logging.debug(response['id'])
         return response['id']
     
     def create_taxonomy(self, taxonomy_name):
-        """
+        """Create a new taxonomy
         Parameters
         ----------
         taxonomy_name: str
@@ -177,12 +184,12 @@ class TaskMonkClient:
         """
         url = self._base_url + urlConfig.URLS['Project'] + '/' + self._project_id + '/taxonomy'
         data = json.dumps({'name': taxonomy_name})
-        response = apiCall.post(self.get_token(), url, data, 30)
+        response = apiCall.post(self._get_token(), url,self._proxy, data, 30)
         taxonomy_id = response['id']
         return taxonomy_id
 
-    def import_taxonomy(self, taxonomy_id, file_path):
-        """
+    def import_taxonomy(self, taxonomy_id, file_path, file_type = 'Excel'):
+        """Import categories into the taxonomy
         Parameters
         ----------
         taxonomy_id: str
@@ -190,20 +197,20 @@ class TaskMonkClient:
         
         file_path: str
             Contains the path of the file from where the taxonomy should be imported
-        ----------
+
         Returns
         -------
         number
             count of categories imported
         """
-        url = self._base_url + urlConfig.URLS['Project'] + '/v2/' + self._project_id + '/taxonomy/' + taxonomy_id + '/import'
+        url = self._base_url + urlConfig.URLS['Project'] + '/v2/' + self._project_id + '/taxonomy/' + taxonomy_id + '/import?file_type=' + file_type
         file_name = ntpath.basename(file_path)
         files = {'file': open(file_path, 'rb').read()}
-        response = apiCall.file_upload(self.get_token(), url, files, 30)
+        response = apiCall.file_upload(self._get_token(), url,self._proxy, files, 30)
         return response['count']
     
     def upload_tasks(self, batch_id = None, input_file='', file_type = 'Excel'):
-        """
+        """Upload tasks from a local CSV or Excel file
         Parameters
         ----------
         batch_id : str
@@ -236,7 +243,7 @@ class TaskMonkClient:
                 os.remove('file.txt.gz')
                 response = requests.post(url, encoded, headers = {
                     'Content-Type': 'text/plain',
-                    'Authorization': 'Bearer ' + self.get_token()})
+                    'Authorization': 'Bearer ' + self._get_token()})
                 logging.debug(response.json())
                 parsed = response.json()
                 job_id = parsed['job_id']
@@ -247,7 +254,7 @@ class TaskMonkClient:
 
     
     def import_tasks_url(self,project_id = None, batch_id = None,file_url='', file_type = ''):
-        """
+        """Upload tasks from a publicly accessible URL
         Parameters
         ----------
         file_url: str
@@ -256,23 +263,23 @@ class TaskMonkClient:
         Returns
         -------
         str
-            job_id for the upload task
+            job_id for the import task from url
         """
 
     
-        url = self.base_url + urlConfig.URLS['Project'] + '/' + self.project_id + '/batch/' + batch_id + '/tasks/import/url'
+        url = self._base_url + urlConfig.URLS['Project'] + '/' + self._project_id + '/batch/' + batch_id + '/tasks/import/url'
     
         data = json.dumps({
             "file_url": file_url,
             "file_type": file_type
         })
     
-        response = apiCall.post(self.get_token(), url, data, 30)
+        response = apiCall.post(self._get_token(), url,self._proxy, data, 30)
         logging.debug(response)
-        return response
+        return response.get('jobId')
 
     def get_job_progress(self, job_id):
-        """
+        """Get the progress of an upload job
         Parameters
         ----------
         job_id : str
@@ -285,7 +292,7 @@ class TaskMonkClient:
         """
 
         url = self._base_url + urlConfig.URLS['Project'] + '/' + self._project_id + '/job/' + job_id + '/status'
-        response = apiCall.get(self.get_token(), url, {}, 10)
+        response = apiCall.get(self._get_token(), url,self._proxy, {}, 10)
         logging.debug('response = %s', response)
         return response
     
@@ -295,7 +302,7 @@ class TaskMonkClient:
         ----------
         job_id: str
             job_id from a previous upload
-        ----------
+
         Returns
         -------
         boolean
@@ -327,7 +334,7 @@ class TaskMonkClient:
         """
     
         url = self._base_url + urlConfig.URLS['Project'] + '/' + self._project_id + '/batch/' + batch_id + '/status'
-        response = apiCall.get(self.get_token(), url, {}, 10)
+        response = apiCall.get(self._get_token(), url,self._proxy, {}, 10)
         return response
 
     def is_batch_complete(self, batch_id):
@@ -336,7 +343,7 @@ class TaskMonkClient:
         ----------
         batch_id: str
             Contains the batch id of a specific batch
-        ----------
+
         Returns
         -------
         boolean
@@ -363,7 +370,7 @@ class TaskMonkClient:
             Path of the file where the ouput should be stored
 
         output_format: str
-            Format of the output
+            Format of the output. Should be 'CSV' or 'Excel'
         
         fields: Array of String
             The fields that should be included in the output file. 
@@ -378,24 +385,20 @@ class TaskMonkClient:
         """
         url = self._base_url + urlConfig.URLS['Project'] + '/v2/' + self._project_id + '/batch/' + batch_id + '/output?output_format=' + output_format
         data = json.dumps({'field_names': fields})
-        response = apiCall.post(self.get_token(), url, data, 30)
+        response = apiCall.post(self._get_token(), url,self._proxy, data, 30)
         file_url = response['file_url']
         job_id = response['job_id']
         self._wait_for_job_completion(job_id)
         logging.debug('file_url = %s', file_url)
-        urllib.request.urlretrieve(file_url, local_path)
+        urlretrieve(file_url, local_path)
         return local_path
     
     def _get_batch(self):
         """ Retrieves batches for the project"""
         url = self._base_url + urlConfig.URLS['Project'] + '/' + self._project_id + '/batch'
-        response = apiCall.get(self.get_token(), url, {}, 10)
+        response = apiCall.get(self._get_token(), url,self._proxy, {}, 10)
         logging.debug(response)
         return response
-    
-    
-
-   
 
     def _wait_for_job_completion(self, job_id): 
         """
@@ -409,7 +412,3 @@ class TaskMonkClient:
             logging.debug("waiting for job to complete") 
             sleep(1)
     
-    def json_to_object(self,batch_id = None):
-        response = self.get_batch_status(batch_id)
-        x = response.get('total')
-        print(x)

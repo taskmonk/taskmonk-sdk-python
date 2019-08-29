@@ -3,6 +3,11 @@ import requests
 import sys
 import logging
 
+# proxies = {
+#         "http":"http://localhost:9000",
+#         "https": "89.23.194.174:8080"
+#     }
+
 def pretty_print_POST(req):
     """
     At this point it is completely built and ready
@@ -20,7 +25,7 @@ def pretty_print_POST(req):
     ))
 
 
-def get(accToken = None, url='', data={}, timeout=10):
+def get(accToken = None, url='', proxy = {}, data={}, timeout=10):
     headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + str(accToken)
@@ -28,7 +33,7 @@ def get(accToken = None, url='', data={}, timeout=10):
 
     try:
         print(url)
-        r = requests.get(url, timeout=timeout, headers=headers)
+        r = requests.get(url, proxies = proxy,timeout=timeout, headers=headers)
         r.raise_for_status()
         resp = r.json()
         logging.debug('resp = %s', resp)
@@ -38,12 +43,12 @@ def get(accToken = None, url='', data={}, timeout=10):
         logging.exception("Fatal error in main loop")
         raise
 
-def post(accToken, url='', data={}, timeout=30):
+def post(accToken, url='', proxy={},data={}, timeout=30):
     #accToken = access_token()
 
     headers = {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + accToken
+        'Authorization': 'Bearer ' + str(accToken)
     }
 
     try:
@@ -53,7 +58,7 @@ def post(accToken, url='', data={}, timeout=30):
         prepared = req.prepare()
         pretty_print_POST(prepared)
         s = requests.Session()
-        res = s.send(prepared)
+        res = s.send(prepared,proxies = proxy)
 
         res.raise_for_status()
         resp = res.json()
@@ -65,14 +70,14 @@ def post(accToken, url='', data={}, timeout=30):
         raise
 
 
-def file_upload(accToken, url='', files={}, timeout=30):
+def file_upload(accToken, url='',proxy = {}, files={}, timeout=30):
     headers = {
         'Authorization': 'Bearer ' + str(accToken)
     }
     
     try:
         # print(url, files)
-        r = requests.post(url, files=files, timeout=timeout, headers=headers)
+        r = requests.post(url, files=files, timeout=timeout, headers=headers, proxies = proxy)
         r.raise_for_status()
         resp = r.json()
         return resp
